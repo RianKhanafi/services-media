@@ -4,6 +4,8 @@ const isBase64 = require("is-base64");
 const base64Img = require("base64-img");
 const fs = require("fs");
 
+const uploadImage = require("../helpers/gcs");
+
 const { Media } = require("../models");
 const { HOSTNAME } = process.env;
 
@@ -22,34 +24,55 @@ router.get("/", async (req, res) => {
   });
 });
 
-router.post("/", (req, res) => {
-  const image = req.body.image;
+router.post("/", async (req, res, next) => {
+  try {
+    const myFile = req.file;
+    const imageUrl = await uploadImage(myFile);
 
-  if (!isBase64(image, { mimeRequired: true })) {
-    return res.status(400).json({ status: "error", message: "Invalid base64" });
-  }
-
-  base64Img.img(image, "./public/images", Date.now(), async (err, filepath) => {
-    if (err) {
-      return res.status(400).json({
-        status: "error",
-        message: err.message,
-      });
-    }
-
-    const filename = filepath.split("\\").pop().split("/").pop();
-
-    const media = await Media.create({ image: `images/${filename}` });
+    const media = await Media.create({ image: imageUrl });
 
     return res.json({
       status: "success",
       data: {
         id: media.id,
-        image: `${HOSTNAME}/images/${filename}`,
+        image: imageUrl,
       },
     });
-  });
+  } catch (error) {
+    console.log(error);
+    next(error);
+  }
 });
+
+/** POST IMAGE with base64 **/
+// router.post("/", (req, res) => {
+//   const image = req.body.image;
+
+//   if (!isBase64(image, { mimeRequired: true })) {
+//     return res.status(400).json({ status: "error", message: "Invalid base64" });
+//   }
+
+//   base64Img.img(image, "./public/images", Date.now(), async (err, filepath) => {
+//     if (err) {
+//       return res.status(400).json({
+//         status: "error",
+//         message: err.message,
+//       });
+//     }
+
+//     const filename = filepath.split("\\").pop().split("/").pop();
+
+//     const media = await Media.create({ image: `images/${filename}` });
+
+// return res.json({
+//   status: "success",
+//   data: {
+//     id: media.id,
+//     image: `${HOSTNAME}/images/${filename}`,
+//   },
+// });
+//   });
+// });
 
 router.delete("/:id", async (req, res) => {
   const id = req.params.id;
